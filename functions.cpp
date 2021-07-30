@@ -4,63 +4,39 @@
 #define MAC_ALEN 6
 #define IP_ALEN 4
 
-/// MAC 주소 출력 매크로
-#define MAC_ADDR_FMT "%02X:%02X:%02X:%02X:%02X:%02X" 
-#define MAC_ADDR_FMT_ARGS(addr) addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]
-
-/**
- * @brief 네트워크 인터페이스의 MAC 주소를 확인한다.
- *
- * @param[in] ifname        네트워크 인터페이스 이름
- * @param[in] mac_addr      MAC 주소가 저장될 버퍼 (6바이트 길이)
- * 
- * @retval  0: 성공
- * @retval  -1: 실패
- */
 void getMyIPMacAddr(char *ifname, uint8_t *mac_addr, uint32_t *ip_addr)
 {
   struct ifreq ifr;
   int sockfd, ret;
 
-  // printf("Get interface(%s) MAC address\n", ifname);
-
-  /*
-   * 네트워크 인터페이스 소켓을 연다.
-   */
+  // Open Socket
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   if(sockfd < 0) {
-    printf("Fail to get interface MAC address - socket() failed - %m\n");
-    return;
+    fprintf(stderr, "Fail to get interface MAC address - socket() failed - %m\n");
+    exit(-1);
   }
 
-  /*
-   * 네트워크 인터페이스의 MAC 주소를 확인한다.
-   */
+  // Check the MAC address of Network Interface
   strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
   ret = ioctl(sockfd, SIOCGIFHWADDR, &ifr);
   if (ret < 0) {
-    printf("Fail to get interface MAC address - ioctl(SIOCSIFHWADDR) failed - %m\n");
+    fprintf(stderr, "Fail to get interface MAC address - ioctl(SIOCSIFHWADDR) failed - %m\n");
     close(sockfd);
-    return;
+    exit(-1);
   }
   memcpy(mac_addr, ifr.ifr_hwaddr.sa_data, MAC_ALEN);
 
-  /* 내가 보고 구현한 부분
-   * 네트워크 인터페이스의 IP 주소를 확인한다.
-   */
+  // Check the IP address of Network Interface
   ret = ioctl(sockfd, SIOCGIFADDR, &ifr);
   if (ret < 0) {
-    printf("Fail to get interface IP address - ioctl(SIOCGIFADDR) failed - %m\n");
+    fprintf(stderr, "Fail to get interface IP address - ioctl(SIOCGIFADDR) failed - %m\n");
     close(sockfd);
-    return;
+    exit(-1);
   }
   struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
   *ip_addr = sin->sin_addr.s_addr;
 
   close(sockfd);
-
-  // printf("Success to get interface(%s) MAC address as "MAC_ADDR_FMT"\n", ifname, MAC_ADDR_FMT_ARGS(mac_addr));
-  // printf("IP : %s\n", inet_ntoa(temp));
 }
 
 
@@ -93,6 +69,7 @@ void requestARPforMACAddr(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, Mac *rep
 	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
 	if (res != 0) {
 		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
+		exit(-1);
 	}
 
 	while (true) {
@@ -130,7 +107,6 @@ void requestARPforMACAddr(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, Mac *rep
 }
 
 void replyARPforSpoofing(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, pcap_t *handle) {
-
 	EthArpPacket packet;
 
 	packet.eth_.dmac_ = dmac;
@@ -150,6 +126,7 @@ void replyARPforSpoofing(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, pcap_t *h
 	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
 	if (res != 0) {
 		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
+		exit(-1);
 	}
 }
 
