@@ -17,7 +17,7 @@
  * @retval  0: 성공
  * @retval  -1: 실패
  */
-void GetInterfaceMacAddress(char *ifname, uint8_t *mac_addr, uint32_t *ip_addr)
+void getMyIPMacAddr(char *ifname, uint8_t *mac_addr, uint32_t *ip_addr)
 {
   struct ifreq ifr;
   int sockfd, ret;
@@ -169,7 +169,7 @@ void arpSpoofing(char * senderIPString, char * targetIPString, char *dev, pcap_t
 	// Attacker의 MAC주소와 IP주소를 가져오기
 	uint8_t mac_addr[6];
 	in_addr ip_addr; 
-	GetInterfaceMacAddress(dev, mac_addr, &(ip_addr.s_addr));
+	getMyIPMacAddr(dev, mac_addr, &(ip_addr.s_addr));
 	attackerMACAddr = Mac(mac_addr);
 	attackerIPAddr = Ip(inet_ntoa(ip_addr));
 

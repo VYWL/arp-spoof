@@ -23,6 +23,6 @@ struct EthArpPacket final {
 void usage();
 void arpSpoofing(char * senderIPString, char * targetIPString, char *dev, pcap_t *handle);
 
-void GetInterfaceMacAddress(char *ifname, uint8_t *mac_addr, uint32_t *ip_addr);
+void getMyIPMacAddr(char *ifname, uint8_t *mac_addr, uint32_t *ip_addr);
 void requestARPforMACAddr(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, Mac *replySmac, pcap_t *handle);
 void replyARPforSpoofing(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, pcap_t *handle);
