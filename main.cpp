@@ -14,14 +14,9 @@ int main(int argc, char* argv[]) {
 		fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
 		return -1;
 	}
-	
-	// Do tasks
-	for(int i = 2; i < argc; i += 2) {
-		char * senderIPString = argv[i];
-		char * targetIPString = argv[i + 1];
 
-		arpSpoofing(senderIPString, targetIPString, dev, handle);
-	}
+	// Do tasks
+	arpSpoofing(argc, argv, dev, handle);
 
 	// close
 	pcap_close(handle);

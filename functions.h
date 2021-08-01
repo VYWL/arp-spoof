@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <pcap.h>
+#include <vector>
 #include "ethhdr.h"
 #include "arphdr.h"
 
@@ -18,11 +19,30 @@ struct EthArpPacket final {
 };
 #pragma pack(pop)
 
-#define ETHERNET_HEADER_SIZE 20
+#define ETHERNET_HEADER_SIZE 14
+#define PCAP_GETERR 		 -1
+#define PCAP_ERROR_CONTINUE	  0
+#define FOR_RELAY			  1
+#define FOR_REPLY			  0
+
+
+typedef struct _addrInfo {
+	Ip _ip;
+	Mac _mac;
+}AddrInfo;
+
+typedef struct _addrInfoPair {
+	AddrInfo _sender;
+	AddrInfo _target;
+}AddrInfoPair;
 
 void usage();
-void arpSpoofing(char * senderIPString, char * targetIPString, char *dev, pcap_t *handle);
+void arpSpoofing(int len, char ** argv, char *dev, pcap_t *handle);
 
+AddrInfoPair makeInitAddrInfo();
+int isArpPacket(const u_char* packet);
+int catchOnePacket(pcap_t *handle, pcap_pkthdr *header, u_char *packet);
 void getMyIPMacAddr(char *ifname, uint8_t *mac_addr, uint32_t *ip_addr);
-void requestARPforMACAddr(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, Mac *replySmac, pcap_t *handle);
-void replyARPforSpoofing(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, pcap_t *handle);
+Mac getSMac(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, pcap_t *handle);
+void replyOrRelay(AddrInfoPair AttackerInfo, std::vector<AddrInfoPair>& SenderTargetList, pcap_t *handle, int flag);
+EthArpPacket useARPPacket(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, uint16_t op);
