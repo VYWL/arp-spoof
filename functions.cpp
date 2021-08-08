@@ -46,9 +46,6 @@ AddrInfo getMyIPMacAddr(char *ifname)
 	returnAddrInfo._ip = Ip(inet_ntoa(sin->sin_addr));
 	close(sockfd);
 
-  	// printf("IP : %s\n", inet_ntoa(sin->sin_addr));
-	// printf("MAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(mac_addr));
-
 	return returnAddrInfo;
 }
 
@@ -83,7 +80,6 @@ void usage() {
 }
 
 Mac getSMac(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, pcap_t *handle) {
-	// 목적 : ARP 패킷을 만들어서 보내고, 응답 패킷을 Eth의 dmac과 ARP의 tip, sip으로 비교하여 smac을 얻어낸다.
 	Mac replySmac;
 
 	EthArpPacket arpPacket = useARPPacket(smac, dmac, sip, tmac, tip, ArpHdr::Request);
@@ -126,10 +122,6 @@ Mac getSMac(Mac smac, Mac dmac, Ip sip, Mac tmac, Ip tip, pcap_t *handle) {
 
 		in_addr temp;
 		temp.s_addr = (_ethArpPacket->arp_.sip_);
-		// printf("IP : %s\n", inet_ntoa(temp));
-		// printf("MAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(_smacCheck->sourceMAC));
-
-		// Return Smac
 		return _ethArpPacket->eth_.smac_;
 	}
 }
@@ -187,24 +179,13 @@ AddrInfoPair checkReceivedPacket(const u_char* packet, AddrInfo AttackerInfo, st
 		// Relay의 경우
 		if(flag) {
 			isValidDmac = receivedPacket->eth_.dmac_ == AttackerInfo._mac ? 1 : 0;
-			// isValidSmac = receivedPacket->eth_.smac_ == addr._sender._mac ? 1 : 0;
 			isValidTip  = Ip(ntohl(receivedIPHdr->destinationIP.s_addr))  == addr._target._ip ? 1 : 0;
 			isValidSip  = Ip(ntohl(receivedIPHdr->sourceIP.s_addr))  == addr._sender._ip ? 1 : 0;
 
 			in_addr temp;
 			if(!isValidDmac || !isValidTip || !isValidSip) continue;
 
-			printf("isValidDmac : %s\tisValidTip : %s\tisValidSip : %s\n",isValidDmac ? "True" : "False",isValidTip ? "True" : "False", isValidSip ? "True" : "False");
-			printf("Tip(received)	: %s\n", inet_ntoa(receivedIPHdr->destinationIP));
-			temp.s_addr = Ip(ntohl(addr._target._ip));
-			printf("Tip(already)	: %s\n", inet_ntoa(temp));
-			temp.s_addr = Ip((receivedPacket->arp_.sip_));
-			printf("Sip(received)	: %s\n", inet_ntoa(receivedIPHdr->sourceIP));
-			temp.s_addr = Ip(ntohl(addr._sender._ip));
-			printf("Sip(already)	: %s\n", inet_ntoa(temp));
-
 			if(isValidDmac && isValidSip && isValidTip) {
-				// printf("Check Packet Detected.\n");
 				return addr;
 			}
 			continue;
@@ -217,13 +198,10 @@ AddrInfoPair checkReceivedPacket(const u_char* packet, AddrInfo AttackerInfo, st
 		isValidTip = Ip(ntohl(receivedPacket->arp_.tip_)) == addr._target._ip ? 1 : 0;
 		
 		if(isValidDmac && isValidSmac && isValidTip) {
-			// printf("Check Packet Detected.\n");
 			return addr;
 		}
 	}
 
-	// 못찾았으면 initPair 그대로.
-	// printf("Not found\n");
 	return returnPair;
 }
 
@@ -248,29 +226,11 @@ int isArpPacket(const u_char* packet) {
 
 void relayReceivedPacket(const u_char* packet, u_long size, AddrInfo AttackerInfo, AddrInfoPair relayNeededPair, pcap_t *handle) {
 
-	// u_char * relayPacket = (u_char *)malloc(size);
-
-	// memcpy(relayPacket, packet, size);
-
-	// printf("Is Attacker's Mac addr ? : %s\n", AttackerInfo._mac == Mac("00:0C:29:C0:78:87") ? "Yes" : "No");
-	// printf("Is Target's Mac addr ? : %s\n", relayNeededPair._target._mac == Mac("08:5D:DD:BA:7E:1C") ? "Yes" : "No");
-
-	// return;
-
 	EthHdr *relayEthHdr = (EthHdr *)packet;
 
 	// Mac 정보 수정.
 	relayEthHdr->smac_ = AttackerInfo._mac;
 	relayEthHdr->dmac_ = relayNeededPair._target._mac;
-
-	// printf("SMAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(((EthernetHeader *)packet)->sourceMAC));
-	// printf("DMAC "MAC_ADDR_FMT"\n", MAC_ADDR_FMT_ARGS(((EthernetHeader *)packet)->destinationMAC));
-
-	// For Debug
-	// printf("size : %lu\n", size);
-	// EthArpPacket * checkPacket = (EthArpPacket *)relayPacket;
-	// printf("Check SMac address :: %s\n", checkPacket->eth_.smac_ == AttackerInfo._mac ? "Same" : "Different");
-	// printf("Check DMac address :: %s\n", checkPacket->eth_.dmac_ == relayNeededPair._target._mac ? "Same" : "Different");
 
 	EthernetHeader * _tempEth = (EthernetHeader *)packet;
 	
@@ -278,39 +238,12 @@ void relayReceivedPacket(const u_char* packet, u_long size, AddrInfo AttackerInf
 		return;
 	}
 
-
-	IPHeader * temp = (IPHeader *)(packet + ETHERNET_HEADER_SIZE);
-	// printf(":: Relay Packet Info :: \n");
-	// printf("Protocol : %d\n", ntohs(temp->protocolID));
-	// printf("Source IP : %s\n", inet_ntoa(temp->sourceIP));
-	// printf("Destination IP : %s\n", inet_ntoa(temp->destinationIP));
-
 	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), size);
 	if (res != 0) {
 		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 		fprintf(stderr, "Size : %lu\n", size);
 		exit(-1);
 	}
-
-	// printf("Sent!\n");
-
-	// free(relayPacket);
-	// if(temp->protocolID != 0x01) return;
-	
-	// int res2 = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&relayPacket), size);
-	// if (res2 != 0) {
-	// 	fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res2, pcap_geterr(handle));
-	// 	fprintf(stderr, "Size : %lu\n", size);
-	// 	exit(-1);
-	// }
-	
-	// int res3 = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&relayPacket), size);
-	// if (res3 != 0) {
-	// 	fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res3, pcap_geterr(handle));
-	// 	fprintf(stderr, "Size : %lu\n", size);
-	// 	exit(-1);
-	// }
-
 }
 
 void replyARPPacket(AddrInfo AttackerInfo, AddrInfoPair SenderTargetInfo, pcap_t *handle) {
