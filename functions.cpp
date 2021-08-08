@@ -171,27 +171,42 @@ AddrInfoPair checkReceivedPacket(const u_char* packet, AddrInfo AttackerInfo, st
 	// 미리 변수 선언 ()
 	int isValidDmac = 0;
 	int isValidSmac = 0;
-	int isValidTip = 0;
+	int isValidTip  = 0;
+	int isValidSip  = 0;
 
 	// 리턴 전용 Pair 초기화
 	AddrInfoPair returnPair = makeInitAddrInfo();
 
 	// 여기서 Packet 분석. => IP와 MAC 전부 조사.	
 	EthArpPacket * receivedPacket = (EthArpPacket *)packet;
+	EthernetHeader *receivedEthHdr = (EthernetHeader *)packet;
+	IPHeader *receivedIPHdr = (IPHeader *)(packet + ETHERNET_HEADER_SIZE);
 
 	// 여기서 vector 내 검색. 
 	for(auto &addr : SenderTargetList) {
 		// Relay의 경우
 		if(flag) {
 			isValidDmac = receivedPacket->eth_.dmac_ == AttackerInfo._mac ? 1 : 0;
-			isValidSmac = receivedPacket->eth_.smac_ == addr._sender._mac ? 1 : 0;
-			isValidTip  = receivedPacket->arp_.tip_  == addr._target._ip  ? 1 : 0;
-			
-			if(isValidDmac && isValidSmac && isValidTip) {
+			// isValidSmac = receivedPacket->eth_.smac_ == addr._sender._mac ? 1 : 0;
+			isValidTip  = Ip(ntohl(receivedIPHdr->destinationIP.s_addr))  == addr._target._ip ? 1 : 0;
+			isValidSip  = Ip(ntohl(receivedIPHdr->sourceIP.s_addr))  == addr._sender._ip ? 1 : 0;
+
+			in_addr temp;
+			if(!isValidDmac || !isValidTip || !isValidSip) continue;
+
+			printf("isValidDmac : %s\tisValidTip : %s\tisValidSip : %s\n",isValidDmac ? "True" : "False",isValidTip ? "True" : "False", isValidSip ? "True" : "False");
+			printf("Tip(received)	: %s\n", inet_ntoa(receivedIPHdr->destinationIP));
+			temp.s_addr = Ip(ntohl(addr._target._ip));
+			printf("Tip(already)	: %s\n", inet_ntoa(temp));
+			temp.s_addr = Ip((receivedPacket->arp_.sip_));
+			printf("Sip(received)	: %s\n", inet_ntoa(receivedIPHdr->sourceIP));
+			temp.s_addr = Ip(ntohl(addr._sender._ip));
+			printf("Sip(already)	: %s\n", inet_ntoa(temp));
+
+			if(isValidDmac && isValidSip && isValidTip) {
 				// printf("Check Packet Detected.\n");
 				return addr;
 			}
-
 			continue;
 		}
 
@@ -277,7 +292,7 @@ void relayReceivedPacket(const u_char* packet, u_long size, AddrInfo AttackerInf
 		exit(-1);
 	}
 
-	printf("Sent!\n");
+	// printf("Sent!\n");
 
 	// free(relayPacket);
 	// if(temp->protocolID != 0x01) return;
